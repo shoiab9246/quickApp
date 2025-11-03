@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Xylophone Game",
+    "slug": "xylophone-game",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "description": "A colorful and interactive xylophone game with haptic feedback",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7FAFC"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quickapp.xylophone"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F7FAFC"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.quickapp.xylophone"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
