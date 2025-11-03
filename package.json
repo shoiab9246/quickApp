@@ -9,8 +9,10 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "base64-js": "^1.5.1",
     "expo": "~54.0.20",
     "expo-av": "^16.0.7",
+    "expo-file-system": "^19.0.17",
     "expo-haptics": "^15.0.7",
     "expo-status-bar": "~3.0.8",
     "react": "19.1.0",
