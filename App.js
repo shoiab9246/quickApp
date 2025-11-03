@@ -125,18 +125,10 @@ export default function App() {
         // Convert Uint8Array to base64 string for file writing
         const base64Audio = fromByteArray(audioData);
         
-        // Write base64 data as binary file
-        // Use string 'base64' directly as FileSystem.EncodingType might not be available
-        try {
-          await FileSystem.writeAsStringAsync(fileName, base64Audio, {
-            encoding: 'base64',
-          });
-        } catch (writeError) {
-          // Fallback: try without encoding option (might write as text, which won't work)
-          console.log('Write error, trying alternative:', writeError);
-          // Alternative approach: we might need to write binary data differently
-          throw writeError;
-        }
+        // Write base64 data as binary file using legacy FileSystem API
+        await FileSystem.writeAsStringAsync(fileName, base64Audio, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
         
         console.log(`Playing note: ${note} at ${frequency}Hz from file: ${fileName}`);
         
