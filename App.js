@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet,
@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
-  Platform
+  Platform,
+  ScrollView
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
@@ -26,10 +27,148 @@ const NOTES = [
   { note: 'C2', color: '#FF4757', label: "C'", frequency: 523.25 },
 ];
 
+// Preset songs with note sequences and lyrics
+const SONGS = [
+  {
+    id: 'happy-birthday',
+    name: 'Happy Birthday',
+    icon: '🎂',
+    notes: [
+      { note: 'C', duration: 400 },
+      { note: 'C', duration: 200 },
+      { note: 'D', duration: 600 },
+      { note: 'C', duration: 600 },
+      { note: 'F', duration: 600 },
+      { note: 'E', duration: 800 },
+      { note: 'C', duration: 400 },
+      { note: 'C', duration: 200 },
+      { note: 'D', duration: 600 },
+      { note: 'C', duration: 600 },
+      { note: 'G', duration: 600 },
+      { note: 'F', duration: 800 },
+    ],
+    lyrics: [
+      'Happy Birthday to you',
+      'Happy Birthday to you',
+      'Happy Birthday dear friend',
+      'Happy Birthday to you'
+    ]
+  },
+  {
+    id: 'twinkle',
+    name: 'Twinkle Twinkle',
+    icon: '⭐',
+    notes: [
+      { note: 'C', duration: 400 },
+      { note: 'C', duration: 400 },
+      { note: 'G', duration: 400 },
+      { note: 'G', duration: 400 },
+      { note: 'A', duration: 400 },
+      { note: 'A', duration: 400 },
+      { note: 'G', duration: 800 },
+      { note: 'F', duration: 400 },
+      { note: 'F', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'D', duration: 400 },
+      { note: 'D', duration: 400 },
+      { note: 'C', duration: 800 },
+    ],
+    lyrics: [
+      'Twinkle twinkle little star',
+      'How I wonder what you are',
+      'Up above the world so high',
+      'Like a diamond in the sky'
+    ]
+  },
+  {
+    id: 'jingle-bells',
+    name: 'Jingle Bells',
+    icon: '🔔',
+    notes: [
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 600 },
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 600 },
+      { note: 'E', duration: 400 },
+      { note: 'G', duration: 400 },
+      { note: 'C', duration: 400 },
+      { note: 'D', duration: 400 },
+      { note: 'E', duration: 800 },
+    ],
+    lyrics: [
+      'Jingle bells, jingle bells',
+      'Jingle all the way',
+      'Oh what fun it is to ride',
+      'In a one horse open sleigh'
+    ]
+  },
+  {
+    id: 'mary-lamb',
+    name: 'Mary Had a Little Lamb',
+    icon: '🐑',
+    notes: [
+      { note: 'E', duration: 400 },
+      { note: 'D', duration: 400 },
+      { note: 'C', duration: 400 },
+      { note: 'D', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 600 },
+      { note: 'D', duration: 400 },
+      { note: 'D', duration: 400 },
+      { note: 'D', duration: 600 },
+      { note: 'E', duration: 400 },
+      { note: 'G', duration: 400 },
+      { note: 'G', duration: 600 },
+    ],
+    lyrics: [
+      'Mary had a little lamb',
+      'Little lamb, little lamb',
+      'Mary had a little lamb',
+      'Its fleece was white as snow'
+    ]
+  },
+  {
+    id: 'ode-to-joy',
+    name: 'Ode to Joy',
+    icon: '🎼',
+    notes: [
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'F', duration: 400 },
+      { note: 'G', duration: 400 },
+      { note: 'G', duration: 400 },
+      { note: 'F', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'D', duration: 400 },
+      { note: 'C', duration: 400 },
+      { note: 'C', duration: 400 },
+      { note: 'D', duration: 400 },
+      { note: 'E', duration: 400 },
+      { note: 'E', duration: 600 },
+      { note: 'D', duration: 200 },
+      { note: 'D', duration: 800 },
+    ],
+    lyrics: [
+      'Ode to Joy',
+      'By Beethoven',
+      'Symphony No. 9',
+      'Classical Masterpiece'
+    ]
+  },
+];
+
 export default function App() {
   const [activeNote, setActiveNote] = useState(null);
   const [tapCount, setTapCount] = useState(0);
   const [sounds, setSounds] = useState({});
+  const [playingSong, setPlayingSong] = useState(null);
+  const [currentNoteIndex, setCurrentNoteIndex] = useState(-1);
+  const [currentLyricIndex, setCurrentLyricIndex] = useState(0);
+  const playbackTimeoutRef = useRef(null);
 
   // Initialize audio mode on component mount
   useEffect(() => {
@@ -37,7 +176,7 @@ export default function App() {
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
     });
-    
+
     // Cleanup on unmount
     return () => {
       Object.values(sounds).forEach(sound => {
@@ -45,8 +184,66 @@ export default function App() {
           sound.unloadAsync().catch(() => {});
         }
       });
+      if (playbackTimeoutRef.current) {
+        clearTimeout(playbackTimeoutRef.current);
+      }
     };
   }, []);
+
+  // Auto-play song function
+  const autoPlaySong = async (song) => {
+    // Stop any currently playing song
+    stopSong();
+
+    setPlayingSong(song);
+    setCurrentNoteIndex(0);
+    setCurrentLyricIndex(0);
+
+    // Play notes sequentially
+    playSequence(song, 0);
+  };
+
+  const playSequence = async (song, index) => {
+    if (index >= song.notes.length) {
+      // Song finished
+      setPlayingSong(null);
+      setCurrentNoteIndex(-1);
+      setCurrentLyricIndex(0);
+      return;
+    }
+
+    const noteData = song.notes[index];
+    const noteInfo = NOTES.find(n => n.note === noteData.note);
+
+    if (noteInfo) {
+      const noteIndex = NOTES.findIndex(n => n.note === noteData.note);
+
+      // Play the note
+      await playNote(noteInfo.note, noteIndex, noteInfo.frequency, noteData.duration);
+
+      setCurrentNoteIndex(index);
+
+      // Update lyric index based on progress
+      const progress = (index / song.notes.length) * song.lyrics.length;
+      setCurrentLyricIndex(Math.floor(progress));
+
+      // Schedule next note
+      playbackTimeoutRef.current = setTimeout(() => {
+        playSequence(song, index + 1);
+      }, noteData.duration + 100); // Small gap between notes
+    }
+  };
+
+  const stopSong = () => {
+    if (playbackTimeoutRef.current) {
+      clearTimeout(playbackTimeoutRef.current);
+      playbackTimeoutRef.current = null;
+    }
+    setPlayingSong(null);
+    setCurrentNoteIndex(-1);
+    setCurrentLyricIndex(0);
+    setActiveNote(null);
+  };
 
   // Generate WAV audio data as Uint8Array for a given frequency
   const generateToneWAV = (frequency, duration = 0.4) => {
@@ -109,7 +306,7 @@ export default function App() {
     return audioBuffer;
   };
 
-  const playNote = async (note, index, frequency) => {
+  const playNote = async (note, index, frequency, customDuration = null) => {
     try {
       // Provide haptic feedback (skip on web as it's not supported)
       if (Platform.OS !== 'web') {
@@ -122,7 +319,8 @@ export default function App() {
       // Play audio tone - use different approach for web vs native
       try {
         // Generate WAV audio data as Uint8Array directly
-        const audioData = generateToneWAV(frequency);
+        const duration = customDuration ? customDuration / 1000 : 0.4; // Convert ms to seconds
+        const audioData = generateToneWAV(frequency, duration);
         
         let audioUri;
         
@@ -177,8 +375,10 @@ export default function App() {
         // Fallback: just use haptics if audio fails
       }
 
-      // Reset active state after animation
-      setTimeout(() => setActiveNote(null), 200);
+      // Reset active state after animation (only if not auto-playing)
+      if (!playingSong) {
+        setTimeout(() => setActiveNote(null), 200);
+      }
     } catch (error) {
       console.error('General error:', error);
       setActiveNote(index);
@@ -195,12 +395,73 @@ export default function App() {
 
       <View style={styles.header}>
         <Text style={styles.title}>🎵 Xylophone 🎵</Text>
-        <Text style={styles.subtitle}>Tap the colorful bars to play!</Text>
-       <Text style={styles.subtitle}></Text>
-        {tapCount > 0 && (
+        <Text style={styles.subtitle}>Tap bars or play a song!</Text>
+        {tapCount > 0 && !playingSong && (
           <Text style={styles.counter}>Notes played: {tapCount}</Text>
         )}
       </View>
+
+      {/* Preset Songs Section */}
+      <View style={styles.songsSection}>
+        <Text style={styles.songsSectionTitle}>Preset Songs</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.songsScrollView}
+          contentContainerStyle={styles.songsScrollContent}
+        >
+          {SONGS.map((song) => (
+            <TouchableOpacity
+              key={song.id}
+              style={[
+                styles.songButton,
+                playingSong?.id === song.id && styles.songButtonActive
+              ]}
+              onPress={() => autoPlaySong(song)}
+            >
+              <Text style={styles.songIcon}>{song.icon}</Text>
+              <Text style={styles.songName}>{song.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        {playingSong && (
+          <TouchableOpacity style={styles.stopButton} onPress={stopSong}>
+            <Text style={styles.stopButtonText}>⏹ Stop</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Song Info Panel - Shows during playback */}
+      {playingSong && (
+        <View style={styles.songInfoPanel}>
+          <Text style={styles.songInfoTitle}>
+            {playingSong.icon} {playingSong.name}
+          </Text>
+          <View style={styles.lyricsContainer}>
+            {playingSong.lyrics.map((line, index) => (
+              <Text
+                key={index}
+                style={[
+                  styles.lyricLine,
+                  index === currentLyricIndex && styles.lyricLineActive
+                ]}
+              >
+                {line}
+              </Text>
+            ))}
+          </View>
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${((currentNoteIndex + 1) / playingSong.notes.length) * 100}%`
+                }
+              ]}
+            />
+          </View>
+        </View>
+      )}
 
       <View style={styles.xylophoneContainer}>
         {NOTES.map((item, index) => {
@@ -329,5 +590,118 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#CBD5E0',
     marginTop: 4,
+  },
+  songsSection: {
+    width: '100%',
+    marginBottom: 15,
+    flexShrink: 0,
+  },
+  songsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2D3748',
+    marginBottom: 10,
+    paddingHorizontal: 5,
+  },
+  songsScrollView: {
+    flexGrow: 0,
+  },
+  songsScrollContent: {
+    paddingHorizontal: 5,
+  },
+  songButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 90,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  songButtonActive: {
+    backgroundColor: '#EBF8FF',
+    borderColor: '#4299E1',
+  },
+  songIcon: {
+    fontSize: 32,
+    marginBottom: 5,
+  },
+  songName: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#2D3748',
+    textAlign: 'center',
+  },
+  stopButton: {
+    backgroundColor: '#FC8181',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 10,
+    alignSelf: 'center',
+  },
+  stopButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  songInfoPanel: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 15,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4299E1',
+  },
+  songInfoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    marginBottom: 10,
+  },
+  lyricsContainer: {
+    marginBottom: 10,
+  },
+  lyricLine: {
+    fontSize: 13,
+    color: '#718096',
+    marginVertical: 2,
+    lineHeight: 18,
+  },
+  lyricLineActive: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4299E1',
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#4299E1',
+    borderRadius: 3,
   },
 });
