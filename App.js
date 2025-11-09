@@ -6,7 +6,8 @@ import {
   View,
   TouchableOpacity,
   Dimensions,
-  Animated
+  Animated,
+  Platform
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
@@ -110,30 +111,42 @@ export default function App() {
 
   const playNote = async (note, index, frequency) => {
     try {
-      // Provide haptic feedback
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Provide haptic feedback (skip on web as it's not supported)
+      if (Platform.OS !== 'web') {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
 
       setActiveNote(index);
       setTapCount(prev => prev + 1);
 
-      // Play audio tone by saving to file first (more reliable than data URIs)
+      // Play audio tone - use different approach for web vs native
       try {
         // Generate WAV audio data as Uint8Array directly
         const audioData = generateToneWAV(frequency);
-        const fileName = `${FileSystem.cacheDirectory}note_${note}_${Date.now()}.wav`;
         
-        // Convert Uint8Array to base64 string for file writing
-        const base64Audio = fromByteArray(audioData);
+        let audioUri;
         
-        // Write base64 data as binary file using legacy FileSystem API
-        await FileSystem.writeAsStringAsync(fileName, base64Audio, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        console.log(`Playing note: ${note} at ${frequency}Hz from file: ${fileName}`);
+        if (Platform.OS === 'web') {
+          // For web: create a blob URL from the WAV data
+          const blob = new Blob([audioData], { type: 'audio/wav' });
+          audioUri = URL.createObjectURL(blob);
+          
+          console.log(`Playing note: ${note} at ${frequency}Hz on web`);
+        } else {
+          // For native: save to file system
+          const fileName = `${FileSystem.cacheDirectory}note_${note}_${Date.now()}.wav`;
+          const base64Audio = fromByteArray(audioData);
+          
+          await FileSystem.writeAsStringAsync(fileName, base64Audio, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          
+          audioUri = fileName;
+          console.log(`Playing note: ${note} at ${frequency}Hz from file: ${fileName}`);
+        }
         
         const { sound } = await Audio.Sound.createAsync(
-          { uri: fileName },
+          { uri: audioUri },
           { 
             shouldPlay: true,
             volume: 1.0,
@@ -150,8 +163,12 @@ export default function App() {
           }
           if (status.didJustFinish) {
             await sound.unloadAsync().catch(err => console.log('Unload error:', err));
-            // Delete temporary file
-            await FileSystem.deleteAsync(fileName, { idempotent: true }).catch(() => {});
+            // Clean up: delete temporary file (native) or revoke blob URL (web)
+            if (Platform.OS === 'web' && audioUri.startsWith('blob:')) {
+              URL.revokeObjectURL(audioUri);
+            } else if (Platform.OS !== 'web' && audioUri.startsWith(FileSystem.cacheDirectory)) {
+              await FileSystem.deleteAsync(audioUri, { idempotent: true }).catch(() => {});
+            }
           }
         });
       } catch (audioError) {
@@ -179,6 +196,7 @@ export default function App() {
       <View style={styles.header}>
         <Text style={styles.title}>🎵 Xylophone 🎵</Text>
         <Text style={styles.subtitle}>Tap the colorful bars to play!</Text>
+       <Text style={styles.subtitle}></Text>
         {tapCount > 0 && (
           <Text style={styles.counter}>Notes played: {tapCount}</Text>
         )}
@@ -228,13 +246,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F7FAFC',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 60,
+    justifyContent: 'flex-start',
+    paddingTop: 40,
+    paddingBottom: 20,
     paddingHorizontal: 20,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 30,
+    flexShrink: 0,
   },
   title: {
     fontSize: 42,
@@ -262,6 +282,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
+    minHeight: 0,
+    width: '100%',
+    marginVertical: 20,
   },
   bar: {
     borderRadius: 12,
@@ -294,6 +317,8 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: 'center',
     marginTop: 20,
+    flexShrink: 0,
+    paddingBottom: 10,
   },
   footerText: {
     fontSize: 14,
